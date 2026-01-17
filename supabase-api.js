@@ -9,7 +9,7 @@ const SUPABASE_CONFIG = {
 };
 
 // Initialisation du client Supabase
-let supabase;
+var supabase;
 
 // Fonction d'initialisation (à appeler au chargement de la page)
 function initSupabase() {
