@@ -151,7 +151,6 @@ function creerDocumentDevis(devis, lignes, entreprise) {
                 // Informations entreprise
                 width: '50%',
                 stack: [
-                    { text: entreprise.nom_entreprise || entreprise.nom, style: 'entrepriseNom' },
                     { text: entreprise.adresse || '', style: 'entrepriseInfo' },
                     { text: `${entreprise.code_postal || ''} ${entreprise.ville || ''}`, style: 'entrepriseInfo' },
                     { text: `Tél: ${entreprise.telephone || ''}`, style: 'entrepriseInfo' },
@@ -371,7 +370,6 @@ function creerDocumentFacture(facture, lignes, entreprise) {
                 // Informations entreprise
                 width: '50%',
                 stack: [
-                    { text: entreprise.nom_entreprise || entreprise.nom, style: 'entrepriseNom' },
                     { text: entreprise.adresse || '', style: 'entrepriseInfo' },
                     { text: `${entreprise.code_postal || ''} ${entreprise.ville || ''}`, style: 'entrepriseInfo' },
                     { text: `Tél: ${entreprise.telephone || ''}`, style: 'entrepriseInfo' },
