@@ -6,10 +6,10 @@
 // Configuration de l'entreprise
 const ENTREPRISE_CONFIG = {
     nom: 'EMAPAIE',
-    adresse: '7 Impasse des Passiflores',
-    code_postal: '83390',
-    ville: 'Pierrefeu du Var',
-    telephone: '06 45 99 73 91',
+    adresse: 'Votre adresse',
+    code_postal: 'Code postal',
+    ville: 'Ville',
+    telephone: 'Téléphone',
     email: 'contact@emapaie.fr',
     siret: 'SIRET',
     tva: 'N° TVA'
@@ -165,7 +165,7 @@ function creerDocumentDevis(devis, lignes, entreprise) {
                 width: '50%',
                 stack: [
                     { text: 'CLIENT', style: 'sectionTitle' },
-                    { text: devis.client.nom, style: 'clientNom' },
+                    { text: devis.client.raison_sociale || 'Client', style: 'clientNom' },
                     { text: devis.client.adresse || '', style: 'clientInfo' },
                     { text: `${devis.client.code_postal || ''} ${devis.client.ville || ''}`, style: 'clientInfo' },
                     { text: `SIRET: ${devis.client.siret || 'Non renseigné'}`, style: 'clientInfo' }
@@ -385,7 +385,7 @@ function creerDocumentFacture(facture, lignes, entreprise) {
                 width: '50%',
                 stack: [
                     { text: 'CLIENT', style: 'sectionTitle' },
-                    { text: facture.client.nom, style: 'clientNom' },
+                    { text: facture.client.raison_sociale || 'Client', style: 'clientNom' },
                     { text: facture.client.adresse || '', style: 'clientInfo' },
                     { text: `${facture.client.code_postal || ''} ${facture.client.ville || ''}`, style: 'clientInfo' },
                     { text: `SIRET: ${facture.client.siret || 'Non renseigné'}`, style: 'clientInfo' }
