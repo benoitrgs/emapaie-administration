@@ -40,7 +40,7 @@ async function genererPDFDevis(devisId) {
 
         // Récupérer les lignes du devis
         const { data: lignes, error: lignesError } = await supabase
-            .from('devis_lignes')
+            .from('lignes_devis')
             .select(`
                 *,
                 prestation:prestations(*)
@@ -95,7 +95,7 @@ async function genererPDFFacture(factureId) {
 
         // Récupérer les lignes de la facture
         const { data: lignes, error: lignesError } = await supabase
-            .from('factures_lignes')
+            .from('lignes_factures')
             .select(`
                 *,
                 prestation:prestations(*)
