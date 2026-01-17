@@ -1,805 +1,786 @@
-// ============================================================================
-// Module de génération PDF - EMAPAIE
-// Utilise pdfmake pour créer des PDFs professionnels
-// ============================================================================
+/**
+ * Module de génération PDF pour EMAPAIE
+ * Génère des devis et factures au format PDF avec pdfMake
+ */
 
-// Configuration de l'entreprise (à personnaliser)
+// Configuration de l'entreprise
 const ENTREPRISE_CONFIG = {
     nom: 'EMAPAIE',
-    adresse: 'Adresse de votre entreprise',
-    code_postal: '75001',
-    ville: 'Paris',
-    telephone: '01 23 45 67 89',
+    adresse: '7 Impasse des Passiflores',
+    code_postal: '83390',
+    ville: 'Pierrefeu du Var',
+    telephone: '06 45 99 73 91',
     email: 'contact@emapaie.fr',
-    siret: '123 456 789 00012',
-    tva: 'FR12345678901'
+    siret: 'SIRET',
+    tva: 'N° TVA'
 };
 
-// ============================================================================
-// Générer PDF pour un DEVIS
-// ============================================================================
+// Couleur principale - BLEU ROI
+const COULEUR_PRINCIPALE = '#1e40af';
 
+/**
+ * Génère le contenu du PDF pour un devis
+ */
 async function genererPDFDevis(devisId) {
     try {
-        // Charger les données du devis
-        const devis = await DevisAPI.getById(devisId);
-        const client = await ClientsAPI.getById(devis.client_id);
+        console.log('🔄 Génération PDF devis:', devisId);
         
-        // Charger le logo depuis les paramètres
-        const parametres = await ParametresAPI.get();
-        const logoImage = parametres.logo_base64;
-        
+        // Récupérer les données du devis
+        const { data: devis, error: devisError } = await supabase
+            .from('devis')
+            .select(`
+                *,
+                client:clients(*)
+            `)
+            .eq('id', devisId)
+            .single();
+
+        if (devisError) throw devisError;
+        if (!devis) throw new Error('Devis introuvable');
+
+        // Récupérer les lignes du devis
+        const { data: lignes, error: lignesError } = await supabase
+            .from('devis_lignes')
+            .select(`
+                *,
+                prestation:prestations(*)
+            `)
+            .eq('devis_id', devisId)
+            .order('ordre');
+
+        if (lignesError) throw lignesError;
+
+        // Récupérer les paramètres entreprise (avec logo)
+        const { data: parametres } = await supabase
+            .from('parametres')
+            .select('*')
+            .single();
+
+        // Utiliser les paramètres de la base ou les valeurs par défaut
+        const entreprise = parametres || ENTREPRISE_CONFIG;
+
         // Préparer le contenu du PDF
-        const docDefinition = {
-            pageSize: 'A4',
-            pageMargins: [40, 60, 40, 60],
-            
-            // En-tête de page
-            header: function(currentPage, pageCount) {
-                return {
-                    columns: [
-                        {
-                            text: ENTREPRISE_CONFIG.nom,
-                            style: 'headerCompany',
-                            margin: [40, 20, 0, 0]
-                        },
-                        {
-                            text: `Page ${currentPage} / ${pageCount}`,
-                            alignment: 'right',
-                            style: 'headerPage',
-                            margin: [0, 20, 40, 0]
-                        }
-                    ]
-                };
-            },
-            
-            // Pied de page
-            footer: function(currentPage, pageCount) {
-                return {
-                    columns: [
-                        {
-                            text: `${ENTREPRISE_CONFIG.nom} - SIRET: ${ENTREPRISE_CONFIG.siret} - TVA: ${ENTREPRISE_CONFIG.tva}`,
-                            style: 'footer',
-                            alignment: 'center',
-                            margin: [40, 20, 40, 0]
-                        }
-                    ]
-                };
-            },
-            
-            // Contenu du document
-            content: [
-                // Logo (si présent)
-                ...( logoImage ? [{
-                    image: logoImage,
-                    width: 120,
-                    alignment: 'center',
-                    margin: [0, 0, 0, 20]
-                }] : []),
-                
-                // Titre
-                {
-                    text: 'DEVIS',
-                    style: 'title',
-                    margin: [0, 0, 0, 10]
-                },
-                
-                // Informations devis et entreprise
-                {
-                    columns: [
-                        // Colonne gauche : Entreprise
-                        {
-                            width: '50%',
-                            stack: [
-                                { text: ENTREPRISE_CONFIG.nom, style: 'companyName' },
-                                { text: ENTREPRISE_CONFIG.adresse, style: 'companyInfo' },
-                                { text: `${ENTREPRISE_CONFIG.code_postal} ${ENTREPRISE_CONFIG.ville}`, style: 'companyInfo' },
-                                { text: `Tél: ${ENTREPRISE_CONFIG.telephone}`, style: 'companyInfo' },
-                                { text: `Email: ${ENTREPRISE_CONFIG.email}`, style: 'companyInfo' }
-                            ]
-                        },
-                        // Colonne droite : Numéro et dates
-                        {
-                            width: '50%',
-                            stack: [
-                                { text: `N° ${devis.numero}`, style: 'devisNumber' },
-                                { text: `Date d'émission: ${formatDateFR(devis.date_emission)}`, style: 'dateInfo' },
-                                { text: `Valable jusqu'au: ${formatDateFR(devis.date_validite)}`, style: 'dateInfo' },
-                                { 
-                                    text: getStatutText(devis.statut), 
-                                    style: 'statut',
-                                    color: getStatutColor(devis.statut),
-                                    margin: [0, 5, 0, 0]
-                                }
-                            ]
-                        }
-                    ],
-                    margin: [0, 0, 0, 20]
-                },
-                
-                // Client
-                {
-                    text: 'CLIENT',
-                    style: 'sectionTitle',
-                    margin: [0, 20, 0, 5]
-                },
-                {
-                    stack: [
-                        { text: client.raison_sociale, style: 'clientName' },
-                        { text: client.adresse || '', style: 'clientInfo' },
-                        { text: client.code_postal && client.ville ? `${client.code_postal} ${client.ville}` : '', style: 'clientInfo' },
-                        { text: client.email || '', style: 'clientInfo' },
-                        { text: client.telephone || '', style: 'clientInfo' }
-                    ],
-                    margin: [0, 0, 0, 20]
-                },
-                
-                // Tableau des prestations
-                {
-                    text: 'PRESTATIONS',
-                    style: 'sectionTitle',
-                    margin: [0, 10, 0, 10]
-                },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['*', 60, 70, 50, 70],
-                        body: [
-                            // En-tête du tableau
-                            [
-                                { text: 'Description', style: 'tableHeader' },
-                                { text: 'Quantité', style: 'tableHeader', alignment: 'center' },
-                                { text: 'Prix unitaire', style: 'tableHeader', alignment: 'right' },
-                                { text: 'Remise', style: 'tableHeader', alignment: 'center' },
-                                { text: 'Montant HT', style: 'tableHeader', alignment: 'right' }
-                            ],
-                            // Lignes de prestations
-                            ...devis.lignes.map(ligne => [
-                                { text: ligne.description, style: 'tableCell' },
-                                { text: ligne.quantite.toFixed(2), style: 'tableCell', alignment: 'center' },
-                                { text: formatCurrencyPDF(ligne.prix_unitaire), style: 'tableCell', alignment: 'right' },
-                                { text: ligne.remise_pourcent > 0 ? `${ligne.remise_pourcent}%` : '-', style: 'tableCell', alignment: 'center' },
-                                { text: formatCurrencyPDF(ligne.montant_ht), style: 'tableCell', alignment: 'right', bold: true }
-                            ])
-                        ]
-                    },
-                    layout: {
-                        hLineWidth: function(i, node) {
-                            return (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5;
-                        },
-                        vLineWidth: function() { return 0.5; },
-                        hLineColor: function(i) {
-                            return (i === 0 || i === 1) ? '#1a4d2e' : '#cccccc';
-                        },
-                        vLineColor: function() { return '#cccccc'; },
-                        fillColor: function(i) {
-                            return (i === 0) ? '#1a4d2e' : null;
-                        }
-                    }
-                },
-                
-                // Totaux
-                {
-                    columns: [
-                        { width: '*', text: '' },
-                        {
-                            width: 200,
-                            stack: [
-                                {
-                                    columns: [
-                                        { text: 'Total HT:', style: 'totalLabel', width: 100 },
-                                        { text: formatCurrencyPDF(devis.montant_ht), style: 'totalValue', width: 100, alignment: 'right' }
-                                    ],
-                                    margin: [0, 10, 0, 5]
-                                },
-                                {
-                                    columns: [
-                                        { text: `TVA (${devis.taux_tva}%):`, style: 'totalLabel', width: 100 },
-                                        { text: formatCurrencyPDF(devis.montant_tva), style: 'totalValue', width: 100, alignment: 'right' }
-                                    ],
-                                    margin: [0, 0, 0, 10]
-                                },
-                                {
-                                    canvas: [
-                                        {
-                                            type: 'line',
-                                            x1: 0, y1: 0,
-                                            x2: 200, y2: 0,
-                                            lineWidth: 1,
-                                            lineColor: '#1a4d2e'
-                                        }
-                                    ],
-                                    margin: [0, 0, 0, 10]
-                                },
-                                {
-                                    columns: [
-                                        { text: 'Total TTC:', style: 'totalLabelFinal', width: 100 },
-                                        { text: formatCurrencyPDF(devis.montant_ttc), style: 'totalValueFinal', width: 100, alignment: 'right' }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                },
-                
-                // Notes et conditions
-                devis.notes ? {
-                    text: 'NOTES',
-                    style: 'sectionTitle',
-                    margin: [0, 20, 0, 5]
-                } : {},
-                devis.notes ? {
-                    text: devis.notes,
-                    style: 'notes',
-                    margin: [0, 0, 0, 10]
-                } : {},
-                
-                {
-                    text: 'CONDITIONS GÉNÉRALES',
-                    style: 'sectionTitle',
-                    margin: [0, 20, 0, 5]
-                },
-                {
-                    text: devis.conditions || 'Devis valable 30 jours. Règlement à réception de facture. Tout devis accepté suppose l\'adhésion aux conditions générales de vente disponibles sur simple demande.',
-                    style: 'conditions'
-                }
-            ],
-            
-            // Styles
-            styles: {
-                title: {
-                    fontSize: 24,
-                    bold: true,
-                    color: '#1a4d2e',
-                    alignment: 'center'
-                },
-                headerCompany: {
-                    fontSize: 10,
-                    color: '#666666'
-                },
-                headerPage: {
-                    fontSize: 9,
-                    color: '#999999'
-                },
-                footer: {
-                    fontSize: 8,
-                    color: '#999999'
-                },
-                companyName: {
-                    fontSize: 12,
-                    bold: true,
-                    color: '#1a4d2e'
-                },
-                companyInfo: {
-                    fontSize: 9,
-                    color: '#666666',
-                    margin: [0, 2, 0, 0]
-                },
-                devisNumber: {
-                    fontSize: 16,
-                    bold: true,
-                    color: '#1a4d2e',
-                    alignment: 'right'
-                },
-                dateInfo: {
-                    fontSize: 10,
-                    alignment: 'right',
-                    margin: [0, 2, 0, 0]
-                },
-                statut: {
-                    fontSize: 11,
-                    bold: true,
-                    alignment: 'right'
-                },
-                sectionTitle: {
-                    fontSize: 12,
-                    bold: true,
-                    color: '#1a4d2e',
-                    decoration: 'underline'
-                },
-                clientName: {
-                    fontSize: 12,
-                    bold: true
-                },
-                clientInfo: {
-                    fontSize: 10,
-                    color: '#666666',
-                    margin: [0, 2, 0, 0]
-                },
-                tableHeader: {
-                    fontSize: 10,
-                    bold: true,
-                    color: 'white',
-                    fillColor: '#1a4d2e'
-                },
-                tableCell: {
-                    fontSize: 9,
-                    margin: [5, 5, 5, 5]
-                },
-                totalLabel: {
-                    fontSize: 11
-                },
-                totalValue: {
-                    fontSize: 11,
-                    bold: true
-                },
-                totalLabelFinal: {
-                    fontSize: 13,
-                    bold: true,
-                    color: '#1a4d2e'
-                },
-                totalValueFinal: {
-                    fontSize: 14,
-                    bold: true,
-                    color: '#1a4d2e'
-                },
-                notes: {
-                    fontSize: 9,
-                    italics: true,
-                    color: '#666666'
-                },
-                conditions: {
-                    fontSize: 8,
-                    color: '#999999',
-                    italics: true
-                }
-            }
-        };
+        const docDefinition = creerDocumentDevis(devis, lignes, entreprise);
         
         // Générer et télécharger le PDF
         pdfMake.createPdf(docDefinition).download(`Devis_${devis.numero}.pdf`);
         
-        showNotification('✅ PDF du devis généré avec succès', 'success');
+        console.log('✅ PDF généré avec succès');
         
     } catch (error) {
-        console.error('Erreur génération PDF devis:', error);
+        console.error('❌ Erreur génération PDF:', error);
         alert('Erreur lors de la génération du PDF: ' + error.message);
     }
 }
 
-// ============================================================================
-// Générer PDF pour une FACTURE
-// ============================================================================
-
+/**
+ * Génère le contenu du PDF pour une facture
+ */
 async function genererPDFFacture(factureId) {
     try {
-        // Charger les données de la facture
-        const facture = await FacturesAPI.getById(factureId);
-        const client = await ClientsAPI.getById(facture.client_id);
+        console.log('🔄 Génération PDF facture:', factureId);
         
-        // Calculer le reste à payer
-        const resteAPayer = facture.montant_ttc - (facture.montant_paye || 0);
-        
-        // Charger le logo depuis les paramètres
-        const parametres = await ParametresAPI.get();
-        const logoImage = parametres.logo_base64;
-        
+        // Récupérer les données de la facture
+        const { data: facture, error: factureError } = await supabase
+            .from('factures')
+            .select(`
+                *,
+                client:clients(*)
+            `)
+            .eq('id', factureId)
+            .single();
+
+        if (factureError) throw factureError;
+        if (!facture) throw new Error('Facture introuvable');
+
+        // Récupérer les lignes de la facture
+        const { data: lignes, error: lignesError } = await supabase
+            .from('factures_lignes')
+            .select(`
+                *,
+                prestation:prestations(*)
+            `)
+            .eq('facture_id', factureId)
+            .order('ordre');
+
+        if (lignesError) throw lignesError;
+
+        // Récupérer les paramètres entreprise (avec logo)
+        const { data: parametres } = await supabase
+            .from('parametres')
+            .select('*')
+            .single();
+
+        // Utiliser les paramètres de la base ou les valeurs par défaut
+        const entreprise = parametres || ENTREPRISE_CONFIG;
+
         // Préparer le contenu du PDF
-        const docDefinition = {
-            pageSize: 'A4',
-            pageMargins: [40, 60, 40, 60],
-            
-            header: function(currentPage, pageCount) {
-                return {
-                    columns: [
-                        {
-                            text: ENTREPRISE_CONFIG.nom,
-                            style: 'headerCompany',
-                            margin: [40, 20, 0, 0]
-                        },
-                        {
-                            text: `Page ${currentPage} / ${pageCount}`,
-                            alignment: 'right',
-                            style: 'headerPage',
-                            margin: [0, 20, 40, 0]
-                        }
-                    ]
-                };
-            },
-            
-            footer: function(currentPage, pageCount) {
-                return {
-                    columns: [
-                        {
-                            text: `${ENTREPRISE_CONFIG.nom} - SIRET: ${ENTREPRISE_CONFIG.siret} - TVA: ${ENTREPRISE_CONFIG.tva}`,
-                            style: 'footer',
-                            alignment: 'center',
-                            margin: [40, 20, 40, 0]
-                        }
-                    ]
-                };
-            },
-            
-            content: [
-                // Logo (si présent)
-                ...( logoImage ? [{
-                    image: logoImage,
-                    width: 120,
-                    alignment: 'center',
-                    margin: [0, 0, 0, 20]
-                }] : []),
-                
-                // Titre
-                {
-                    text: 'FACTURE',
-                    style: 'title',
-                    margin: [0, 0, 0, 10]
-                },
-                
-                // Informations facture et entreprise
-                {
-                    columns: [
-                        {
-                            width: '50%',
-                            stack: [
-                                { text: ENTREPRISE_CONFIG.nom, style: 'companyName' },
-                                { text: ENTREPRISE_CONFIG.adresse, style: 'companyInfo' },
-                                { text: `${ENTREPRISE_CONFIG.code_postal} ${ENTREPRISE_CONFIG.ville}`, style: 'companyInfo' },
-                                { text: `Tél: ${ENTREPRISE_CONFIG.telephone}`, style: 'companyInfo' },
-                                { text: `Email: ${ENTREPRISE_CONFIG.email}`, style: 'companyInfo' }
-                            ]
-                        },
-                        {
-                            width: '50%',
-                            stack: [
-                                { text: `N° ${facture.numero}`, style: 'devisNumber' },
-                                { text: `Date d'émission: ${formatDateFR(facture.date_emission)}`, style: 'dateInfo' },
-                                { text: `Date d'échéance: ${formatDateFR(facture.date_echeance)}`, style: 'dateInfo' },
-                                { 
-                                    text: getStatutTextFacture(facture.statut), 
-                                    style: 'statut',
-                                    color: getStatutColorFacture(facture.statut),
-                                    margin: [0, 5, 0, 0]
-                                }
-                            ]
-                        }
-                    ],
-                    margin: [0, 0, 0, 20]
-                },
-                
-                // Client
-                {
-                    text: 'CLIENT',
-                    style: 'sectionTitle',
-                    margin: [0, 20, 0, 5]
-                },
-                {
-                    stack: [
-                        { text: client.raison_sociale, style: 'clientName' },
-                        { text: client.adresse || '', style: 'clientInfo' },
-                        { text: client.code_postal && client.ville ? `${client.code_postal} ${client.ville}` : '', style: 'clientInfo' },
-                        { text: client.email || '', style: 'clientInfo' },
-                        { text: client.telephone || '', style: 'clientInfo' }
-                    ],
-                    margin: [0, 0, 0, 20]
-                },
-                
-                // Tableau des prestations
-                {
-                    text: 'PRESTATIONS',
-                    style: 'sectionTitle',
-                    margin: [0, 10, 0, 10]
-                },
-                {
-                    table: {
-                        headerRows: 1,
-                        widths: ['*', 60, 70, 50, 70],
-                        body: [
-                            [
-                                { text: 'Description', style: 'tableHeader' },
-                                { text: 'Quantité', style: 'tableHeader', alignment: 'center' },
-                                { text: 'Prix unitaire', style: 'tableHeader', alignment: 'right' },
-                                { text: 'Remise', style: 'tableHeader', alignment: 'center' },
-                                { text: 'Montant HT', style: 'tableHeader', alignment: 'right' }
-                            ],
-                            ...facture.lignes.map(ligne => [
-                                { text: ligne.description, style: 'tableCell' },
-                                { text: ligne.quantite.toFixed(2), style: 'tableCell', alignment: 'center' },
-                                { text: formatCurrencyPDF(ligne.prix_unitaire), style: 'tableCell', alignment: 'right' },
-                                { text: ligne.remise_pourcent > 0 ? `${ligne.remise_pourcent}%` : '-', style: 'tableCell', alignment: 'center' },
-                                { text: formatCurrencyPDF(ligne.montant_ht), style: 'tableCell', alignment: 'right', bold: true }
-                            ])
-                        ]
-                    },
-                    layout: {
-                        hLineWidth: function(i, node) {
-                            return (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5;
-                        },
-                        vLineWidth: function() { return 0.5; },
-                        hLineColor: function(i) {
-                            return (i === 0 || i === 1) ? '#1a4d2e' : '#cccccc';
-                        },
-                        vLineColor: function() { return '#cccccc'; },
-                        fillColor: function(i) {
-                            return (i === 0) ? '#1a4d2e' : null;
-                        }
-                    }
-                },
-                
-                // Totaux avec suivi paiement
-                {
-                    columns: [
-                        { width: '*', text: '' },
-                        {
-                            width: 220,
-                            stack: [
-                                {
-                                    columns: [
-                                        { text: 'Total HT:', style: 'totalLabel', width: 120 },
-                                        { text: formatCurrencyPDF(facture.montant_ht), style: 'totalValue', width: 100, alignment: 'right' }
-                                    ],
-                                    margin: [0, 10, 0, 5]
-                                },
-                                {
-                                    columns: [
-                                        { text: `TVA (${facture.taux_tva}%):`, style: 'totalLabel', width: 120 },
-                                        { text: formatCurrencyPDF(facture.montant_tva), style: 'totalValue', width: 100, alignment: 'right' }
-                                    ],
-                                    margin: [0, 0, 0, 10]
-                                },
-                                {
-                                    canvas: [
-                                        {
-                                            type: 'line',
-                                            x1: 0, y1: 0,
-                                            x2: 220, y2: 0,
-                                            lineWidth: 1,
-                                            lineColor: '#1a4d2e'
-                                        }
-                                    ],
-                                    margin: [0, 0, 0, 10]
-                                },
-                                {
-                                    columns: [
-                                        { text: 'Total TTC:', style: 'totalLabelFinal', width: 120 },
-                                        { text: formatCurrencyPDF(facture.montant_ttc), style: 'totalValueFinal', width: 100, alignment: 'right' }
-                                    ],
-                                    margin: [0, 0, 0, 10]
-                                },
-                                ...(facture.montant_paye > 0 ? [
-                                    {
-                                        canvas: [
-                                            {
-                                                type: 'line',
-                                                x1: 0, y1: 0,
-                                                x2: 220, y2: 0,
-                                                lineWidth: 0.5,
-                                                lineColor: '#cccccc'
-                                            }
-                                        ],
-                                        margin: [0, 0, 0, 5]
-                                    },
-                                    {
-                                        columns: [
-                                            { text: 'Déjà payé:', style: 'paidLabel', width: 120 },
-                                            { text: formatCurrencyPDF(facture.montant_paye), style: 'paidValue', width: 100, alignment: 'right' }
-                                        ],
-                                        margin: [0, 0, 0, 5]
-                                    },
-                                    {
-                                        columns: [
-                                            { text: 'Reste à payer:', style: 'remainingLabel', width: 120 },
-                                            { text: formatCurrencyPDF(resteAPayer), style: 'remainingValue', width: 100, alignment: 'right' }
-                                        ]
-                                    }
-                                ] : [])
-                            ]
-                        }
-                    ]
-                },
-                
-                // Notes et conditions
-                facture.notes ? {
-                    text: 'NOTES',
-                    style: 'sectionTitle',
-                    margin: [0, 20, 0, 5]
-                } : {},
-                facture.notes ? {
-                    text: facture.notes,
-                    style: 'notes',
-                    margin: [0, 0, 0, 10]
-                } : {},
-                
-                {
-                    text: 'CONDITIONS DE RÈGLEMENT',
-                    style: 'sectionTitle',
-                    margin: [0, 20, 0, 5]
-                },
-                {
-                    text: facture.conditions_reglement || 'Paiement à 30 jours. Pénalités de retard : taux BCE + 10 points. Indemnité forfaitaire pour frais de recouvrement : 40€.',
-                    style: 'conditions'
-                }
-            ],
-            
-            styles: {
-                title: {
-                    fontSize: 24,
-                    bold: true,
-                    color: '#1a4d2e',
-                    alignment: 'center'
-                },
-                headerCompany: {
-                    fontSize: 10,
-                    color: '#666666'
-                },
-                headerPage: {
-                    fontSize: 9,
-                    color: '#999999'
-                },
-                footer: {
-                    fontSize: 8,
-                    color: '#999999'
-                },
-                companyName: {
-                    fontSize: 12,
-                    bold: true,
-                    color: '#1a4d2e'
-                },
-                companyInfo: {
-                    fontSize: 9,
-                    color: '#666666',
-                    margin: [0, 2, 0, 0]
-                },
-                devisNumber: {
-                    fontSize: 16,
-                    bold: true,
-                    color: '#1a4d2e',
-                    alignment: 'right'
-                },
-                dateInfo: {
-                    fontSize: 10,
-                    alignment: 'right',
-                    margin: [0, 2, 0, 0]
-                },
-                statut: {
-                    fontSize: 11,
-                    bold: true,
-                    alignment: 'right'
-                },
-                sectionTitle: {
-                    fontSize: 12,
-                    bold: true,
-                    color: '#1a4d2e',
-                    decoration: 'underline'
-                },
-                clientName: {
-                    fontSize: 12,
-                    bold: true
-                },
-                clientInfo: {
-                    fontSize: 10,
-                    color: '#666666',
-                    margin: [0, 2, 0, 0]
-                },
-                tableHeader: {
-                    fontSize: 10,
-                    bold: true,
-                    color: 'white',
-                    fillColor: '#1a4d2e'
-                },
-                tableCell: {
-                    fontSize: 9,
-                    margin: [5, 5, 5, 5]
-                },
-                totalLabel: {
-                    fontSize: 11
-                },
-                totalValue: {
-                    fontSize: 11,
-                    bold: true
-                },
-                totalLabelFinal: {
-                    fontSize: 13,
-                    bold: true,
-                    color: '#1a4d2e'
-                },
-                totalValueFinal: {
-                    fontSize: 14,
-                    bold: true,
-                    color: '#1a4d2e'
-                },
-                paidLabel: {
-                    fontSize: 10,
-                    color: '#ef4444'
-                },
-                paidValue: {
-                    fontSize: 10,
-                    color: '#ef4444',
-                    bold: true
-                },
-                remainingLabel: {
-                    fontSize: 11,
-                    color: '#f59e0b',
-                    bold: true
-                },
-                remainingValue: {
-                    fontSize: 12,
-                    color: '#f59e0b',
-                    bold: true
-                },
-                notes: {
-                    fontSize: 9,
-                    italics: true,
-                    color: '#666666'
-                },
-                conditions: {
-                    fontSize: 8,
-                    color: '#999999',
-                    italics: true
-                }
-            }
-        };
+        const docDefinition = creerDocumentFacture(facture, lignes, entreprise);
         
         // Générer et télécharger le PDF
         pdfMake.createPdf(docDefinition).download(`Facture_${facture.numero}.pdf`);
         
-        showNotification('✅ PDF de la facture généré avec succès', 'success');
+        console.log('✅ PDF généré avec succès');
         
     } catch (error) {
-        console.error('Erreur génération PDF facture:', error);
+        console.error('❌ Erreur génération PDF:', error);
         alert('Erreur lors de la génération du PDF: ' + error.message);
     }
 }
 
-// ============================================================================
-// Fonctions utilitaires
-// ============================================================================
+/**
+ * Crée la structure du document PDF pour un devis
+ */
+function creerDocumentDevis(devis, lignes, entreprise) {
+    const content = [];
 
-function formatDateFR(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    // Logo si disponible
+    if (entreprise.logo_base64) {
+        content.push({
+            image: entreprise.logo_base64,
+            width: 120,
+            alignment: 'left',
+            margin: [0, 0, 0, 20]
+        });
+    }
+
+    // En-tête avec informations entreprise et client
+    content.push({
+        columns: [
+            {
+                // Informations entreprise
+                width: '50%',
+                stack: [
+                    { text: entreprise.nom_entreprise || entreprise.nom, style: 'entrepriseNom' },
+                    { text: entreprise.adresse || '', style: 'entrepriseInfo' },
+                    { text: `${entreprise.code_postal || ''} ${entreprise.ville || ''}`, style: 'entrepriseInfo' },
+                    { text: `Tél: ${entreprise.telephone || ''}`, style: 'entrepriseInfo' },
+                    { text: `Email: ${entreprise.email || ''}`, style: 'entrepriseInfo' },
+                    { text: `SIRET: ${entreprise.siret || ''}`, style: 'entrepriseInfo' },
+                    { text: `N° TVA: ${entreprise.tva || ''}`, style: 'entrepriseInfo' }
+                ]
+            },
+            {
+                // Informations client
+                width: '50%',
+                stack: [
+                    { text: 'CLIENT', style: 'sectionTitle' },
+                    { text: devis.client.nom, style: 'clientNom' },
+                    { text: devis.client.adresse || '', style: 'clientInfo' },
+                    { text: `${devis.client.code_postal || ''} ${devis.client.ville || ''}`, style: 'clientInfo' },
+                    { text: `SIRET: ${devis.client.siret || 'Non renseigné'}`, style: 'clientInfo' }
+                ]
+            }
+        ],
+        margin: [0, 0, 0, 30]
+    });
+
+    // Titre DEVIS avec numéro et statut
+    content.push({
+        columns: [
+            { text: 'DEVIS', style: 'titre' },
+            { 
+                text: getStatutLabel(devis.statut), 
+                style: 'statut',
+                color: getStatutColor(devis.statut),
+                alignment: 'right'
+            }
+        ],
+        margin: [0, 0, 0, 20]
+    });
+
+    // Informations du devis
+    content.push({
+        columns: [
+            {
+                width: '50%',
+                stack: [
+                    { text: `N° ${devis.numero}`, style: 'info' },
+                    { text: `Date d'émission: ${formatDate(devis.date_emission)}`, style: 'info' }
+                ]
+            },
+            {
+                width: '50%',
+                stack: [
+                    { text: `Date de validité: ${formatDate(devis.date_validite)}`, style: 'info', alignment: 'right' }
+                ]
+            }
+        ],
+        margin: [0, 0, 0, 30]
+    });
+
+    // Tableau des prestations
+    const tableBody = [
+        [
+            { text: 'Prestation', style: 'tableHeader' },
+            { text: 'Quantité', style: 'tableHeader', alignment: 'center' },
+            { text: 'Prix unitaire', style: 'tableHeader', alignment: 'right' },
+            { text: 'Remise', style: 'tableHeader', alignment: 'center' },
+            { text: 'Total HT', style: 'tableHeader', alignment: 'right' }
+        ]
+    ];
+
+    lignes.forEach(ligne => {
+        tableBody.push([
+            { 
+                text: [
+                    { text: ligne.prestation.nom + '\n', bold: true },
+                    { text: ligne.description || '', fontSize: 9, color: '#666' }
+                ],
+                margin: [0, 5, 0, 5]
+            },
+            { text: `${ligne.quantite} ${ligne.prestation.unite}`, alignment: 'center' },
+            { text: formatCurrency(ligne.prix_unitaire), alignment: 'right' },
+            { text: ligne.remise_pourcent ? `${ligne.remise_pourcent}%` : '-', alignment: 'center' },
+            { text: formatCurrency(ligne.montant_ht), alignment: 'right', bold: true }
+        ]);
+    });
+
+    content.push({
+        table: {
+            headerRows: 1,
+            widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+            body: tableBody
+        },
+        layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => '#e5e7eb',
+            vLineColor: () => '#e5e7eb',
+            fillColor: (rowIndex) => rowIndex === 0 ? COULEUR_PRINCIPALE : null
+        },
+        margin: [0, 0, 0, 20]
+    });
+
+    // Totaux
+    content.push({
+        columns: [
+            { text: '', width: '*' },
+            {
+                width: 200,
+                stack: [
+                    {
+                        columns: [
+                            { text: 'Total HT:', style: 'totalLabel' },
+                            { text: formatCurrency(devis.montant_ht), style: 'totalValue' }
+                        ]
+                    },
+                    {
+                        columns: [
+                            { text: `TVA (${devis.tva_pourcent}%):`, style: 'totalLabel' },
+                            { text: formatCurrency(devis.montant_tva), style: 'totalValue' }
+                        ]
+                    },
+                    {
+                        canvas: [
+                            {
+                                type: 'line',
+                                x1: 0, y1: 5,
+                                x2: 200, y2: 5,
+                                lineWidth: 1,
+                                lineColor: COULEUR_PRINCIPALE
+                            }
+                        ]
+                    },
+                    {
+                        columns: [
+                            { text: 'Total TTC:', style: 'totalLabelFinal' },
+                            { text: formatCurrency(devis.montant_ttc), style: 'totalValueFinal' }
+                        ],
+                        margin: [0, 5, 0, 0]
+                    }
+                ]
+            }
+        ]
+    });
+
+    // Notes
+    if (devis.notes) {
+        content.push({
+            text: 'Notes',
+            style: 'sectionTitle',
+            margin: [0, 30, 0, 10]
+        });
+        content.push({
+            text: devis.notes,
+            style: 'notes'
+        });
+    }
+
+    // Conditions
+    content.push({
+        text: 'Conditions',
+        style: 'sectionTitle',
+        margin: [0, 30, 0, 10]
+    });
+    content.push({
+        text: 'Ce devis est valable 30 jours à compter de la date d\'émission. Les prestations seront réalisées selon les conditions convenues. TVA non applicable, art. 293 B du CGI.',
+        style: 'conditions'
+    });
+
+    return {
+        content: content,
+        styles: getPDFStyles(),
+        defaultStyle: {
+            font: 'Roboto'
+        },
+        pageSize: 'A4',
+        pageMargins: [40, 40, 40, 60],
+        footer: function(currentPage, pageCount) {
+            return {
+                columns: [
+                    { 
+                        text: `${entreprise.nom_entreprise || entreprise.nom} - ${entreprise.siret || ''}`, 
+                        alignment: 'left',
+                        fontSize: 8,
+                        color: '#666'
+                    },
+                    { 
+                        text: `Page ${currentPage} sur ${pageCount}`, 
+                        alignment: 'right',
+                        fontSize: 8,
+                        color: '#666'
+                    }
+                ],
+                margin: [40, 0, 40, 0]
+            };
+        }
+    };
 }
 
-function formatCurrencyPDF(amount) {
+/**
+ * Crée la structure du document PDF pour une facture
+ */
+function creerDocumentFacture(facture, lignes, entreprise) {
+    const content = [];
+
+    // Logo si disponible
+    if (entreprise.logo_base64) {
+        content.push({
+            image: entreprise.logo_base64,
+            width: 120,
+            alignment: 'left',
+            margin: [0, 0, 0, 20]
+        });
+    }
+
+    // En-tête avec informations entreprise et client
+    content.push({
+        columns: [
+            {
+                // Informations entreprise
+                width: '50%',
+                stack: [
+                    { text: entreprise.nom_entreprise || entreprise.nom, style: 'entrepriseNom' },
+                    { text: entreprise.adresse || '', style: 'entrepriseInfo' },
+                    { text: `${entreprise.code_postal || ''} ${entreprise.ville || ''}`, style: 'entrepriseInfo' },
+                    { text: `Tél: ${entreprise.telephone || ''}`, style: 'entrepriseInfo' },
+                    { text: `Email: ${entreprise.email || ''}`, style: 'entrepriseInfo' },
+                    { text: `SIRET: ${entreprise.siret || ''}`, style: 'entrepriseInfo' },
+                    { text: `N° TVA: ${entreprise.tva || ''}`, style: 'entrepriseInfo' }
+                ]
+            },
+            {
+                // Informations client
+                width: '50%',
+                stack: [
+                    { text: 'CLIENT', style: 'sectionTitle' },
+                    { text: facture.client.nom, style: 'clientNom' },
+                    { text: facture.client.adresse || '', style: 'clientInfo' },
+                    { text: `${facture.client.code_postal || ''} ${facture.client.ville || ''}`, style: 'clientInfo' },
+                    { text: `SIRET: ${facture.client.siret || 'Non renseigné'}`, style: 'clientInfo' }
+                ]
+            }
+        ],
+        margin: [0, 0, 0, 30]
+    });
+
+    // Titre FACTURE avec numéro et statut
+    content.push({
+        columns: [
+            { text: 'FACTURE', style: 'titre' },
+            { 
+                text: getStatutFactureLabel(facture.statut), 
+                style: 'statut',
+                color: getStatutFactureColor(facture.statut),
+                alignment: 'right'
+            }
+        ],
+        margin: [0, 0, 0, 20]
+    });
+
+    // Informations de la facture
+    content.push({
+        columns: [
+            {
+                width: '50%',
+                stack: [
+                    { text: `N° ${facture.numero}`, style: 'info' },
+                    { text: `Date d'émission: ${formatDate(facture.date_emission)}`, style: 'info' },
+                    { text: `Date d'échéance: ${formatDate(facture.date_echeance)}`, style: 'info' }
+                ]
+            },
+            {
+                width: '50%',
+                stack: [
+                    { text: `Conditions de règlement: ${facture.conditions_reglement || '30 jours'}`, style: 'info', alignment: 'right' }
+                ]
+            }
+        ],
+        margin: [0, 0, 0, 30]
+    });
+
+    // Tableau des prestations
+    const tableBody = [
+        [
+            { text: 'Prestation', style: 'tableHeader' },
+            { text: 'Quantité', style: 'tableHeader', alignment: 'center' },
+            { text: 'Prix unitaire', style: 'tableHeader', alignment: 'right' },
+            { text: 'Remise', style: 'tableHeader', alignment: 'center' },
+            { text: 'Total HT', style: 'tableHeader', alignment: 'right' }
+        ]
+    ];
+
+    lignes.forEach(ligne => {
+        tableBody.push([
+            { 
+                text: [
+                    { text: ligne.prestation.nom + '\n', bold: true },
+                    { text: ligne.description || '', fontSize: 9, color: '#666' }
+                ],
+                margin: [0, 5, 0, 5]
+            },
+            { text: `${ligne.quantite} ${ligne.prestation.unite}`, alignment: 'center' },
+            { text: formatCurrency(ligne.prix_unitaire), alignment: 'right' },
+            { text: ligne.remise_pourcent ? `${ligne.remise_pourcent}%` : '-', alignment: 'center' },
+            { text: formatCurrency(ligne.montant_ht), alignment: 'right', bold: true }
+        ]);
+    });
+
+    content.push({
+        table: {
+            headerRows: 1,
+            widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+            body: tableBody
+        },
+        layout: {
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => '#e5e7eb',
+            vLineColor: () => '#e5e7eb',
+            fillColor: (rowIndex) => rowIndex === 0 ? COULEUR_PRINCIPALE : null
+        },
+        margin: [0, 0, 0, 20]
+    });
+
+    // Totaux avec suivi des paiements
+    content.push({
+        columns: [
+            { text: '', width: '*' },
+            {
+                width: 200,
+                stack: [
+                    {
+                        columns: [
+                            { text: 'Total HT:', style: 'totalLabel' },
+                            { text: formatCurrency(facture.montant_ht), style: 'totalValue' }
+                        ]
+                    },
+                    {
+                        columns: [
+                            { text: `TVA (${facture.tva_pourcent}%):`, style: 'totalLabel' },
+                            { text: formatCurrency(facture.montant_tva), style: 'totalValue' }
+                        ]
+                    },
+                    {
+                        canvas: [
+                            {
+                                type: 'line',
+                                x1: 0, y1: 5,
+                                x2: 200, y2: 5,
+                                lineWidth: 1,
+                                lineColor: COULEUR_PRINCIPALE
+                            }
+                        ]
+                    },
+                    {
+                        columns: [
+                            { text: 'Total TTC:', style: 'totalLabelFinal' },
+                            { text: formatCurrency(facture.montant_ttc), style: 'totalValueFinal' }
+                        ],
+                        margin: [0, 5, 0, 10]
+                    }
+                ]
+            }
+        ]
+    });
+
+    // Suivi des paiements si montant payé > 0
+    if (facture.montant_paye > 0) {
+        content.push({
+            columns: [
+                { text: '', width: '*' },
+                {
+                    width: 200,
+                    stack: [
+                        {
+                            canvas: [
+                                {
+                                    type: 'line',
+                                    x1: 0, y1: 0,
+                                    x2: 200, y2: 0,
+                                    lineWidth: 1,
+                                    lineColor: '#e5e7eb'
+                                }
+                            ],
+                            margin: [0, 0, 0, 10]
+                        },
+                        {
+                            columns: [
+                                { text: 'Montant déjà payé:', style: 'totalLabel', color: '#dc2626' },
+                                { text: formatCurrency(facture.montant_paye), style: 'totalValue', color: '#dc2626' }
+                            ]
+                        },
+                        {
+                            columns: [
+                                { text: 'Reste à payer:', style: 'totalLabelFinal', color: '#ea580c' },
+                                { text: formatCurrency(facture.montant_ttc - facture.montant_paye), style: 'totalValueFinal', color: '#ea580c' }
+                            ],
+                            margin: [0, 5, 0, 0]
+                        }
+                    ]
+                }
+            ]
+        });
+    }
+
+    // Notes
+    if (facture.notes) {
+        content.push({
+            text: 'Notes',
+            style: 'sectionTitle',
+            margin: [0, 30, 0, 10]
+        });
+        content.push({
+            text: facture.notes,
+            style: 'notes'
+        });
+    }
+
+    // Conditions et mentions légales
+    content.push({
+        text: 'Conditions de règlement',
+        style: 'sectionTitle',
+        margin: [0, 30, 0, 10]
+    });
+    content.push({
+        text: `Paiement à réception de facture. En cas de retard de paiement, des pénalités de retard au taux de 10% seront appliquées, ainsi qu'une indemnité forfaitaire pour frais de recouvrement de 40€. TVA non applicable, art. 293 B du CGI.`,
+        style: 'conditions'
+    });
+
+    return {
+        content: content,
+        styles: getPDFStyles(),
+        defaultStyle: {
+            font: 'Roboto'
+        },
+        pageSize: 'A4',
+        pageMargins: [40, 40, 40, 60],
+        footer: function(currentPage, pageCount) {
+            return {
+                columns: [
+                    { 
+                        text: `${entreprise.nom_entreprise || entreprise.nom} - ${entreprise.siret || ''}`, 
+                        alignment: 'left',
+                        fontSize: 8,
+                        color: '#666'
+                    },
+                    { 
+                        text: `Page ${currentPage} sur ${pageCount}`, 
+                        alignment: 'right',
+                        fontSize: 8,
+                        color: '#666'
+                    }
+                ],
+                margin: [40, 0, 40, 0]
+            };
+        }
+    };
+}
+
+/**
+ * Styles du PDF
+ */
+function getPDFStyles() {
+    return {
+        // En-têtes
+        titre: {
+            fontSize: 24,
+            bold: true,
+            color: COULEUR_PRINCIPALE,
+            margin: [0, 0, 0, 5]
+        },
+        sectionTitle: {
+            fontSize: 12,
+            bold: true,
+            color: COULEUR_PRINCIPALE,
+            margin: [0, 10, 0, 5]
+        },
+        
+        // Informations entreprise
+        entrepriseNom: {
+            fontSize: 14,
+            bold: true,
+            color: COULEUR_PRINCIPALE,
+            margin: [0, 0, 0, 5]
+        },
+        entrepriseInfo: {
+            fontSize: 9,
+            color: '#666',
+            margin: [0, 2, 0, 0]
+        },
+        
+        // Informations client
+        clientNom: {
+            fontSize: 12,
+            bold: true,
+            margin: [0, 5, 0, 5]
+        },
+        clientInfo: {
+            fontSize: 9,
+            color: '#666',
+            margin: [0, 2, 0, 0]
+        },
+        
+        // Informations générales
+        info: {
+            fontSize: 10,
+            margin: [0, 2, 0, 0]
+        },
+        
+        // Statut
+        statut: {
+            fontSize: 14,
+            bold: true,
+            margin: [0, 5, 0, 0]
+        },
+        
+        // Tableau
+        tableHeader: {
+            bold: true,
+            fontSize: 10,
+            color: 'white',
+            fillColor: COULEUR_PRINCIPALE,
+            margin: [5, 5, 5, 5]
+        },
+        
+        // Totaux
+        totalLabel: {
+            fontSize: 11,
+            alignment: 'right',
+            margin: [0, 3, 10, 3]
+        },
+        totalValue: {
+            fontSize: 11,
+            alignment: 'right',
+            margin: [0, 3, 0, 3]
+        },
+        totalLabelFinal: {
+            fontSize: 13,
+            bold: true,
+            alignment: 'right',
+            color: COULEUR_PRINCIPALE,
+            margin: [0, 5, 10, 0]
+        },
+        totalValueFinal: {
+            fontSize: 13,
+            bold: true,
+            alignment: 'right',
+            color: COULEUR_PRINCIPALE,
+            margin: [0, 5, 0, 0]
+        },
+        
+        // Notes et conditions
+        notes: {
+            fontSize: 9,
+            color: '#666',
+            margin: [0, 5, 0, 0]
+        },
+        conditions: {
+            fontSize: 8,
+            color: '#666',
+            italics: true,
+            margin: [0, 5, 0, 0]
+        }
+    };
+}
+
+/**
+ * Fonctions utilitaires
+ */
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+    });
+}
+
+function formatCurrency(amount) {
+    if (amount === null || amount === undefined) return '0,00 €';
     return new Intl.NumberFormat('fr-FR', {
         style: 'currency',
         currency: 'EUR'
-    }).format(amount || 0);
+    }).format(amount);
 }
 
-function getStatutText(statut) {
-    const statuts = {
-        'brouillon': '📝 BROUILLON',
-        'envoye': '📤 ENVOYÉ',
-        'accepte': '✅ ACCEPTÉ',
-        'refuse': '❌ REFUSÉ',
-        'expire': '⏰ EXPIRÉ'
+function getStatutLabel(statut) {
+    const labels = {
+        'brouillon': 'BROUILLON',
+        'envoye': 'ENVOYÉ',
+        'accepte': 'ACCEPTÉ',
+        'refuse': 'REFUSÉ',
+        'expire': 'EXPIRÉ'
     };
-    return statuts[statut] || statut.toUpperCase();
+    return labels[statut] || statut.toUpperCase();
 }
 
 function getStatutColor(statut) {
     const colors = {
-        'brouillon': '#3b82f6',
-        'envoye': '#f59e0b',
+        'brouillon': '#6b7280',
+        'envoye': '#3b82f6',
         'accepte': '#10b981',
         'refuse': '#ef4444',
-        'expire': '#6b7280'
+        'expire': '#f59e0b'
     };
-    return colors[statut] || '#000000';
+    return colors[statut] || '#6b7280';
 }
 
-function getStatutTextFacture(statut) {
-    const statuts = {
-        'brouillon': '📝 BROUILLON',
-        'envoyee': '📤 ENVOYÉE',
-        'payee': '✅ PAYÉE',
-        'partiel': '💸 PAIEMENT PARTIEL',
-        'retard': '⏰ EN RETARD',
-        'annulee': '❌ ANNULÉE'
+function getStatutFactureLabel(statut) {
+    const labels = {
+        'brouillon': 'BROUILLON',
+        'envoyee': 'ENVOYÉE',
+        'payee': 'PAYÉE',
+        'partielle': 'PAIEMENT PARTIEL',
+        'retard': 'EN RETARD',
+        'annulee': 'ANNULÉE'
     };
-    return statuts[statut] || statut.toUpperCase();
+    return labels[statut] || statut.toUpperCase();
 }
 
-function getStatutColorFacture(statut) {
+function getStatutFactureColor(statut) {
     const colors = {
-        'brouillon': '#3b82f6',
-        'envoyee': '#f59e0b',
+        'brouillon': '#6b7280',
+        'envoyee': '#3b82f6',
         'payee': '#10b981',
-        'partiel': '#f59e0b',
+        'partielle': '#f59e0b',
         'retard': '#ef4444',
         'annulee': '#6b7280'
     };
-    return colors[statut] || '#000000';
+    return colors[statut] || '#6b7280';
 }
+
+console.log('✅ Module PDF chargé avec succès');
