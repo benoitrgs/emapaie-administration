@@ -519,9 +519,6 @@ async function chargerDocumentsClient(clientId) {
  */
 function afficherDocumentsClient(documents) {
     const container = document.getElementById('documents-list');
-    const clientSelect = document.getElementById('document-client-select');
-    const clientId = clientSelect.value;
-    const clientNom = clientSelect.options[clientSelect.selectedIndex].text;
     
     if (!documents || documents.length === 0) {
         container.innerHTML = `
@@ -530,20 +527,8 @@ function afficherDocumentsClient(documents) {
                 Aucun document pour ce client.
             </div>
         `;
-        // Mettre à jour le titre de la section
-        document.getElementById('documents-list-title').innerHTML = `
-            📄 Documents de <strong>${clientNom}</strong> (0)
-        `;
         return;
     }
-    
-    // Mettre à jour le titre avec le nombre de documents
-    document.getElementById('documents-list-title').innerHTML = `
-        📄 Documents de <strong>${clientNom}</strong> (${documents.length})
-        <button class="btn btn-sm btn-outline-primary ms-3" onclick="chargerDocumentsClient('${clientId}')" title="Rafraîchir la liste">
-            <i class="bi bi-arrow-clockwise"></i> Rafraîchir
-        </button>
-    `;
     
     // Grouper par année
     const parAnnee = {};
@@ -560,11 +545,9 @@ function afficherDocumentsClient(documents) {
     // Afficher par année (ordre décroissant)
     Object.keys(parAnnee).sort((a, b) => b - a).forEach(annee => {
         html += `
-            <div style="margin-bottom: 2rem;">
-                <h5 style="color: var(--primary); margin-bottom: 1rem;">
-                    <i class="bi bi-calendar3" style="margin-right: 0.5rem;"></i>${annee}
-                </h5>
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div class="mb-4">
+                <h5 class="text-primary mb-3"><i class="bi bi-calendar3 me-2"></i>${annee}</h5>
+                <div class="list-group">
         `;
         
         parAnnee[annee].forEach(doc => {
@@ -572,30 +555,27 @@ function afficherDocumentsClient(documents) {
             const dateStr = new Date(doc.created_at).toLocaleDateString('fr-FR');
             
             html += `
-                <div style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem;">
-                    <div style="display: flex; align-items: flex-start; gap: 1rem;">
-                        <i class="${iconType}" style="font-size: 2.5rem;"></i>
-                        <div style="flex-grow: 1;">
-                            <h6 style="margin-bottom: 0.5rem; font-weight: 600;">${doc.nom_fichier}</h6>
-                            <p style="margin-bottom: 0.5rem; font-size: 0.875rem;">
+                <div class="list-group-item">
+                    <div class="d-flex align-items-start">
+                        <i class="${iconType} me-3" style="font-size: 2rem;"></i>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${doc.nom_fichier}</h6>
+                            <p class="mb-1 text-muted small">
                                 <span class="badge bg-secondary">${doc.type_document_libelle}</span>
                                 ${doc.mois_libelle ? `<span class="badge bg-info">${doc.mois_libelle}</span>` : ''}
-                                <span style="margin-left: 0.5rem; color: var(--text-gray);">${doc.taille_ko} Ko</span>
+                                <span class="ms-2">${doc.taille_ko} Ko</span>
                             </p>
-                            ${doc.description ? `<p style="margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-gray);">${doc.description}</p>` : ''}
-                            <p style="margin: 0; font-size: 0.75rem; color: var(--text-gray);">
+                            ${doc.description ? `<p class="mb-1 small">${doc.description}</p>` : ''}
+                            <p class="mb-0 text-muted" style="font-size: 0.75rem;">
                                 Ajouté le ${dateStr}
                             </p>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 140px;">
-                            <button class="btn btn-primary btn-sm" onclick="voirDocument('${doc.id}', '${doc.chemin_storage}', '${doc.nom_fichier}')" style="white-space: nowrap;">
-                                <i class="bi bi-eye" style="margin-right: 0.25rem;"></i> Voir
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="telechargerDocument('${doc.id}', '${doc.chemin_storage}', '${doc.nom_fichier}')" title="Télécharger">
+                                <i class="bi bi-download"></i>
                             </button>
-                            <button class="btn btn-outline-primary btn-sm" onclick="telechargerDocument('${doc.id}', '${doc.chemin_storage}', '${doc.nom_fichier}')" style="white-space: nowrap;">
-                                <i class="bi bi-download" style="margin-right: 0.25rem;"></i> Télécharger
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="confirmerSuppressionDocument('${doc.id}', '${doc.nom_fichier}')" style="white-space: nowrap;">
-                                <i class="bi bi-trash" style="margin-right: 0.25rem;"></i> Supprimer
+                            <button class="btn btn-sm btn-outline-danger" onclick="confirmerSuppressionDocument('${doc.id}', '${doc.nom_fichier}')" title="Supprimer">
+                                <i class="bi bi-trash"></i>
                             </button>
                         </div>
                     </div>
@@ -648,40 +628,6 @@ async function telechargerDocument(documentId, cheminStorage, nomFichier) {
         const link = document.createElement('a');
         link.href = data.signedUrl;
         link.download = nomFichier;
-        link.click();
-        
-        console.log('✅ Téléchargement lancé');
-        
-    } catch (error) {
-        console.error('❌ Erreur téléchargement:', error);
-        alert('Erreur lors du téléchargement du document');
-    }
-}
-
-/**
- * Visualiser un document dans le navigateur
- */
-async function voirDocument(documentId, cheminStorage, nomFichier) {
-    try {
-        console.log('👁️ Ouverture:', cheminStorage);
-        
-        // Créer une URL signée temporaire (valide 1 heure)
-        const { data, error } = await supabase.storage
-            .from(DOCUMENTS_CONFIG.bucketName)
-            .createSignedUrl(cheminStorage, 3600);
-        
-        if (error) throw error;
-        
-        // Ouvrir dans un nouvel onglet
-        window.open(data.signedUrl, '_blank');
-        
-        console.log('✅ Document ouvert dans un nouvel onglet');
-        
-    } catch (error) {
-        console.error('❌ Erreur ouverture:', error);
-        alert('Erreur lors de l\'ouverture du document');
-    }
-}
         link.click();
         
         console.log('✅ Téléchargement lancé');
