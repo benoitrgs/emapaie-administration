@@ -75,27 +75,59 @@ async function chargerDocuments() {
  */
 async function chargerClientsDropdown() {
     try {
-        const { data: clients, error } = await supabase
-            .from('clients')
-            .select('id, raison_sociale')
-            .eq('actif', true)
-            .order('raison_sociale');
+        console.log('📋 Chargement des clients...');
+        
+        // Utiliser l'API ClientsAPI si disponible, sinon accès direct Supabase
+        let clients;
+        
+        if (typeof ClientsAPI !== 'undefined' && ClientsAPI.getAll) {
+            console.log('🔧 Utilisation de ClientsAPI.getAll()');
+            clients = await ClientsAPI.getAll();
+        } else {
+            console.log('🔧 Utilisation directe de Supabase');
+            const { data, error } = await supabase
+                .from('clients')
+                .select('id, raison_sociale')
+                .order('raison_sociale');
+            
+            if (error) {
+                console.error('❌ Erreur Supabase:', error);
+                throw error;
+            }
+            clients = data;
+        }
 
-        if (error) throw error;
+        console.log(`✅ ${clients?.length || 0} clients trouvés`, clients);
 
         const select = document.getElementById('document-client-select');
+        
+        if (!select) {
+            console.error('❌ Element document-client-select non trouvé');
+            return;
+        }
+        
         select.innerHTML = '<option value="">-- Sélectionner un client --</option>';
+        
+        if (!clients || clients.length === 0) {
+            select.innerHTML += '<option value="" disabled>Aucun client disponible</option>';
+            console.warn('⚠️ Aucun client dans la base de données');
+            return;
+        }
         
         clients.forEach(client => {
             const option = document.createElement('option');
             option.value = client.id;
-            option.textContent = client.raison_sociale;
+            option.textContent = client.raison_sociale || client.nom || 'Client sans nom';
             select.appendChild(option);
+            console.log('➕ Client ajouté:', client.raison_sociale, '(ID:', client.id, ')');
         });
+        
+        console.log('✅ Dropdown clients rempli avec', clients.length, 'clients');
 
         // Event listener pour charger les documents du client
         select.addEventListener('change', (e) => {
             if (e.target.value) {
+                console.log('📂 Client sélectionné:', e.target.value);
                 chargerDocumentsClient(e.target.value);
             } else {
                 document.getElementById('documents-list-section').style.display = 'none';
@@ -104,6 +136,7 @@ async function chargerClientsDropdown() {
 
     } catch (error) {
         console.error('❌ Erreur chargement clients:', error);
+        alert('Erreur lors du chargement des clients. Vérifiez la console (F12).');
     }
 }
 
