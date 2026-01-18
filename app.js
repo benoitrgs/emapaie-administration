@@ -2751,7 +2751,7 @@ async function loadDocuments() {
 
         <!-- Section Liste des documents -->
         <div id="documents-list-section" class="card" style="display: none;">
-            <h3 id="documents-list-title" style="margin-bottom: 1.5rem; font-size: 1.25rem;">
+            <h3 style="margin-bottom: 1.5rem; font-size: 1.25rem;">
                 📄 Documents du client
             </h3>
             <div id="documents-list">
