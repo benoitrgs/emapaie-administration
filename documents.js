@@ -663,29 +663,36 @@ async function telechargerDocument(documentId, cheminStorage, nomFichier) {
  */
 async function voirDocument(documentId, cheminStorage, nomFichier) {
     try {
-        console.log('👁️ Ouverture:', cheminStorage);
-        
-        // Créer une URL signée temporaire (valide 1 heure)
         const { data, error } = await supabase.storage
             .from(DOCUMENTS_CONFIG.bucketName)
             .createSignedUrl(cheminStorage, 3600);
-        
+
         if (error) throw error;
-        
-        // Ouvrir dans un nouvel onglet
+
         window.open(data.signedUrl, '_blank');
-        
-        console.log('✅ Document ouvert dans un nouvel onglet');
-        
     } catch (error) {
         console.error('❌ Erreur ouverture:', error);
         alert('Erreur lors de l\'ouverture du document');
     }
 }
+
+async function telechargerDocument(cheminStorage, nomFichier) {
+    try {
+        const { data, error } = await supabase.storage
+            .from(DOCUMENTS_CONFIG.bucketName)
+            .createSignedUrl(cheminStorage, 3600);
+
+        if (error) throw error;
+
+        const link = document.createElement('a');
+        link.href = data.signedUrl;
+        link.download = nomFichier;
+        document.body.appendChild(link);
         link.click();
-        
+        document.body.removeChild(link);
+
         console.log('✅ Téléchargement lancé');
-        
+
     } catch (error) {
         console.error('❌ Erreur téléchargement:', error);
         alert('Erreur lors du téléchargement du document');
