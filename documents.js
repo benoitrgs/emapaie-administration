@@ -675,9 +675,9 @@ function afficherDocumentsClient(documents) {
                             ${doc.nom_fichier}
                         </div>
                         <div style="font-size: 0.8125rem; color: #6b7280; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <span class="badge" style="background: #6b7280; font-size: 0.7rem; padding: 0.15rem 0.5rem;">${doc.type_document_libelle}</span>
-                            ${doc.mois_libelle ? `<span class="badge" style="background: #0ea5e9; font-size: 0.7rem; padding: 0.15rem 0.5rem;">${doc.mois_libelle}</span>` : ''}
-                            <span>${doc.taille_ko} Ko</span>
+                            <span class="badge" style="background: #1e40af; color: white; font-size: 0.75rem; padding: 0.25rem 0.6rem; font-weight: 600;">${doc.type_document_libelle}</span>
+                            ${doc.mois_libelle ? `<span class="badge" style="background: #059669; color: white; font-size: 0.75rem; padding: 0.25rem 0.6rem; font-weight: 600;">${doc.mois_libelle}</span>` : ''}
+                            <span style="font-weight: 500;">${doc.taille_ko} Ko</span>
                             <span>•</span>
                             <span>${dateStr}</span>
                         </div>
