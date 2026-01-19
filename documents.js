@@ -71,7 +71,43 @@ async function chargerDocuments() {
 }
 
 /**
- * Charger la liste des clients dans le dropdown
+ * Ouvrir le modal d'upload
+ */
+function ouvrirModalUpload() {
+    const modal = document.getElementById('modal-upload-document');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Focus sur le select client
+        setTimeout(() => {
+            document.getElementById('document-client-select')?.focus();
+        }, 100);
+    }
+}
+
+/**
+ * Fermer le modal d'upload
+ */
+function fermerModalUpload() {
+    const modal = document.getElementById('modal-upload-document');
+    if (modal) {
+        modal.style.display = 'none';
+        // Réinitialiser le formulaire
+        resetUploadForm();
+    }
+}
+
+/**
+ * Fermer le modal si clic en dehors
+ */
+window.addEventListener('click', (e) => {
+    const modal = document.getElementById('modal-upload-document');
+    if (e.target === modal) {
+        fermerModalUpload();
+    }
+});
+
+/**
+ * Charger la liste des clients dans les dropdowns
  */
 async function chargerClientsDropdown() {
     try {
@@ -99,44 +135,106 @@ async function chargerClientsDropdown() {
 
         console.log(`✅ ${clients?.length || 0} clients trouvés`, clients);
 
-        const select = document.getElementById('document-client-select');
+        // Remplir le select principal (dans la page)
+        const selectMain = document.getElementById('document-client-select');
+        // Remplir le select du modal
+        const selectModal = document.getElementById('document-client-select-modal');
         
-        if (!select) {
+        if (!selectMain) {
             console.error('❌ Element document-client-select non trouvé');
             return;
         }
         
-        select.innerHTML = '<option value="">-- Sélectionner un client --</option>';
+        const optionsHTML = '<option value="">-- Sélectionner un client --</option>' +
+            (clients || []).map(client => 
+                `<option value="${client.id}">${client.raison_sociale || client.nom || 'Client sans nom'}</option>`
+            ).join('');
+        
+        if (selectMain) {
+            selectMain.innerHTML = optionsHTML;
+        }
+        
+        if (selectModal) {
+            selectModal.innerHTML = optionsHTML;
+        }
         
         if (!clients || clients.length === 0) {
-            select.innerHTML += '<option value="" disabled>Aucun client disponible</option>';
             console.warn('⚠️ Aucun client dans la base de données');
             return;
         }
         
-        clients.forEach(client => {
-            const option = document.createElement('option');
-            option.value = client.id;
-            option.textContent = client.raison_sociale || client.nom || 'Client sans nom';
-            select.appendChild(option);
-            console.log('➕ Client ajouté:', client.raison_sociale, '(ID:', client.id, ')');
-        });
-        
-        console.log('✅ Dropdown clients rempli avec', clients.length, 'clients');
+        console.log('✅ Dropdowns clients remplis avec', clients.length, 'clients');
 
-        // Event listener pour charger les documents du client
-        select.addEventListener('change', (e) => {
-            if (e.target.value) {
-                console.log('📂 Client sélectionné:', e.target.value);
-                chargerDocumentsClient(e.target.value);
-            } else {
-                document.getElementById('documents-list-section').style.display = 'none';
-            }
-        });
+        // Event listener pour le select principal
+        if (selectMain) {
+            selectMain.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    console.log('📂 Client sélectionné:', e.target.value);
+                    chargerDocumentsClient(e.target.value);
+                } else {
+                    // Afficher message par défaut
+                    const container = document.getElementById('documents-list');
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="padding: 3rem; text-align: center; color: var(--text-gray);">
+                                <p style="font-size: 1.1rem;">👆 Sélectionnez un client pour voir ses documents</p>
+                            </div>
+                        `;
+                    }
+                }
+            });
+        }
 
     } catch (error) {
         console.error('❌ Erreur chargement clients:', error);
         alert('Erreur lors du chargement des clients. Vérifiez la console (F12).');
+    }
+}
+
+/**
+ * Ouvrir le modal d'upload
+ */
+function ouvrirModalUpload() {
+    const modal = document.getElementById('modal-upload-document');
+    if (modal) {
+        modal.style.display = 'flex';
+        // Synchroniser le client sélectionné
+        const selectMain = document.getElementById('document-client-select');
+        const selectModal = document.getElementById('document-client-select-modal');
+        if (selectMain && selectModal && selectMain.value) {
+            selectModal.value = selectMain.value;
+        }
+        // Focus sur le select client
+        setTimeout(() => {
+            selectModal?.focus();
+        }, 100);
+    }
+}
+
+/**
+ * Fermer le modal d'upload
+ */
+function fermerModalUpload(event) {
+    // Si event est fourni, vérifier que c'est un clic sur l'overlay ou le bouton fermer
+    if (event && event.target.className !== 'modal-overlay' && event.target.tagName !== 'BUTTON') {
+        return;
+    }
+    
+    const modal = document.getElementById('modal-upload-document');
+    if (modal) {
+        modal.style.display = 'none';
+        // Réinitialiser le formulaire
+        resetUploadForm();
+    }
+}
+
+/**
+ * Rafraîchir la liste des documents
+ */
+function rafraichirListeDocuments() {
+    const selectMain = document.getElementById('document-client-select');
+    if (selectMain && selectMain.value) {
+        chargerDocumentsClient(selectMain.value);
     }
 }
 
@@ -333,8 +431,8 @@ function clearFileSelection() {
  */
 async function uploaderDocument() {
     try {
-        // Validation du formulaire
-        const clientId = document.getElementById('document-client-select').value;
+        // Validation du formulaire - Utiliser le select du modal
+        const clientId = document.getElementById('document-client-select-modal').value;
         if (!clientId) {
             alert('❌ Veuillez sélectionner un client');
             return;
@@ -447,8 +545,8 @@ async function uploaderDocument() {
         // Afficher succès
         alert(`✅ Document "${selectedFile.name}" uploadé avec succès !`);
         
-        // Réinitialiser le formulaire
-        resetUploadForm();
+        // Fermer le modal
+        fermerModalUpload();
         
         // Recharger la liste des documents du client
         await chargerDocumentsClient(clientId);
@@ -519,31 +617,18 @@ async function chargerDocumentsClient(clientId) {
  */
 function afficherDocumentsClient(documents) {
     const container = document.getElementById('documents-list');
-    const clientSelect = document.getElementById('document-client-select');
-    const clientId = clientSelect.value;
-    const clientNom = clientSelect.options[clientSelect.selectedIndex].text;
+    const selectMain = document.getElementById('document-client-select');
+    const clientNom = selectMain?.options[selectMain.selectedIndex]?.text || 'Client';
     
     if (!documents || documents.length === 0) {
         container.innerHTML = `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle me-2"></i>
-                Aucun document pour ce client.
+            <div style="padding: 3rem; text-align: center; background: #f8f9fa; border-radius: 8px;">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #6c757d;"></i>
+                <p style="margin-top: 1rem; color: var(--text-gray);">Aucun document pour ce client</p>
             </div>
-        `;
-        // Mettre à jour le titre de la section
-        document.getElementById('documents-list-title').innerHTML = `
-            📄 Documents de <strong>${clientNom}</strong> (0)
         `;
         return;
     }
-    
-    // Mettre à jour le titre avec le nombre de documents
-    document.getElementById('documents-list-title').innerHTML = `
-        📄 Documents de <strong>${clientNom}</strong> (${documents.length})
-        <button class="btn btn-sm btn-outline-primary ms-3" onclick="chargerDocumentsClient('${clientId}')" title="Rafraîchir la liste">
-            <i class="bi bi-arrow-clockwise"></i> Rafraîchir
-        </button>
-    `;
     
     // Grouper par année
     const parAnnee = {};
@@ -555,58 +640,68 @@ function afficherDocumentsClient(documents) {
         parAnnee[annee].push(doc);
     });
     
-    let html = '';
+    let html = `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; padding: 1rem; background: #f0f9ff; border-radius: 8px;">
+            <div>
+                <h5 style="margin: 0; color: var(--primary);">📄 ${clientNom}</h5>
+                <p style="margin: 0; font-size: 0.875rem; color: var(--text-gray);">${documents.length} document${documents.length > 1 ? 's' : ''}</p>
+            </div>
+        </div>
+    `;
     
     // Afficher par année (ordre décroissant)
     Object.keys(parAnnee).sort((a, b) => b - a).forEach(annee => {
         html += `
-            <div style="margin-bottom: 2rem;">
-                <h5 style="color: var(--primary); margin-bottom: 1rem;">
-                    <i class="bi bi-calendar3" style="margin-right: 0.5rem;"></i>${annee}
-                </h5>
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div style="margin-bottom: 1.5rem;">
+                <h6 style="color: var(--primary); margin-bottom: 0.75rem; font-weight: 600; font-size: 0.9rem;">
+                    📅 ${annee}
+                </h6>
         `;
         
         parAnnee[annee].forEach(doc => {
             const iconType = getIconForFileType(doc.extension);
-            const dateStr = new Date(doc.created_at).toLocaleDateString('fr-FR');
+            const dateStr = new Date(doc.created_at).toLocaleDateString('fr-FR', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: '2-digit' 
+            });
             
             html += `
-                <div style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem;">
-                    <div style="display: flex; align-items: flex-start; gap: 1rem;">
-                        <i class="${iconType}" style="font-size: 2.5rem;"></i>
-                        <div style="flex-grow: 1;">
-                            <h6 style="margin-bottom: 0.5rem; font-weight: 600;">${doc.nom_fichier}</h6>
-                            <p style="margin-bottom: 0.5rem; font-size: 0.875rem;">
-                                <span class="badge bg-secondary">${doc.type_document_libelle}</span>
-                                ${doc.mois_libelle ? `<span class="badge bg-info">${doc.mois_libelle}</span>` : ''}
-                                <span style="margin-left: 0.5rem; color: var(--text-gray);">${doc.taille_ko} Ko</span>
-                            </p>
-                            ${doc.description ? `<p style="margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-gray);">${doc.description}</p>` : ''}
-                            <p style="margin: 0; font-size: 0.75rem; color: var(--text-gray);">
-                                Ajouté le ${dateStr}
-                            </p>
+                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 1rem; transition: all 0.2s;" 
+                     onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'; this.style.borderColor='var(--primary)'" 
+                     onmouseout="this.style.boxShadow='none'; this.style.borderColor='#e5e7eb'">
+                    
+                    <i class="${iconType}" style="font-size: 1.75rem; flex-shrink: 0;"></i>
+                    
+                    <div style="flex-grow: 1; min-width: 0;">
+                        <div style="font-weight: 500; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95rem;">
+                            ${doc.nom_fichier}
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 140px;">
-                            <button class="btn btn-primary btn-sm" onclick="voirDocument('${doc.id}', '${doc.chemin_storage}', '${doc.nom_fichier}')" style="white-space: nowrap;">
-                                <i class="bi bi-eye" style="margin-right: 0.25rem;"></i> Voir
-                            </button>
-                            <button class="btn btn-outline-primary btn-sm" onclick="telechargerDocument('${doc.id}', '${doc.chemin_storage}', '${doc.nom_fichier}')" style="white-space: nowrap;">
-                                <i class="bi bi-download" style="margin-right: 0.25rem;"></i> Télécharger
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="confirmerSuppressionDocument('${doc.id}', '${doc.nom_fichier}')" style="white-space: nowrap;">
-                                <i class="bi bi-trash" style="margin-right: 0.25rem;"></i> Supprimer
-                            </button>
+                        <div style="font-size: 0.8125rem; color: #6b7280; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <span class="badge" style="background: #6b7280; font-size: 0.7rem; padding: 0.15rem 0.5rem;">${doc.type_document_libelle}</span>
+                            ${doc.mois_libelle ? `<span class="badge" style="background: #0ea5e9; font-size: 0.7rem; padding: 0.15rem 0.5rem;">${doc.mois_libelle}</span>` : ''}
+                            <span>${doc.taille_ko} Ko</span>
+                            <span>•</span>
+                            <span>${dateStr}</span>
                         </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                        <button class="btn btn-sm btn-primary" onclick="voirDocument('${doc.id}', '${doc.chemin_storage}', '${doc.nom_fichier}')" title="Voir" style="padding: 0.4rem 0.75rem;">
+                            👁️
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="telechargerDocument('${doc.id}', '${doc.chemin_storage}', '${doc.nom_fichier}')" title="Télécharger" style="padding: 0.4rem 0.75rem;">
+                            ⬇️
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="confirmerSuppressionDocument('${doc.id}', '${doc.nom_fichier}')" title="Supprimer" style="padding: 0.4rem 0.75rem;">
+                            🗑️
+                        </button>
                     </div>
                 </div>
             `;
         });
         
-        html += `
-                </div>
-            </div>
-        `;
+        html += `</div>`;
     });
     
     container.innerHTML = html;
@@ -663,36 +758,29 @@ async function telechargerDocument(documentId, cheminStorage, nomFichier) {
  */
 async function voirDocument(documentId, cheminStorage, nomFichier) {
     try {
+        console.log('👁️ Ouverture:', cheminStorage);
+        
+        // Créer une URL signée temporaire (valide 1 heure)
         const { data, error } = await supabase.storage
             .from(DOCUMENTS_CONFIG.bucketName)
             .createSignedUrl(cheminStorage, 3600);
-
+        
         if (error) throw error;
-
+        
+        // Ouvrir dans un nouvel onglet
         window.open(data.signedUrl, '_blank');
+        
+        console.log('✅ Document ouvert dans un nouvel onglet');
+        
     } catch (error) {
         console.error('❌ Erreur ouverture:', error);
         alert('Erreur lors de l\'ouverture du document');
     }
 }
-
-async function telechargerDocument(cheminStorage, nomFichier) {
-    try {
-        const { data, error } = await supabase.storage
-            .from(DOCUMENTS_CONFIG.bucketName)
-            .createSignedUrl(cheminStorage, 3600);
-
-        if (error) throw error;
-
-        const link = document.createElement('a');
-        link.href = data.signedUrl;
-        link.download = nomFichier;
-        document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
-
+        
         console.log('✅ Téléchargement lancé');
-
+        
     } catch (error) {
         console.error('❌ Erreur téléchargement:', error);
         alert('Erreur lors du téléchargement du document');
