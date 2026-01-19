@@ -764,8 +764,20 @@ async function voirDocument(documentId, cheminStorage, nomFichier) {
         
         if (error) throw error;
         
+        // Récupérer le fichier en tant que blob pour forcer l'affichage inline
+        const response = await fetch(data.signedUrl);
+        const blob = await response.blob();
+        
+        // Créer une URL locale temporaire
+        const blobUrl = URL.createObjectURL(blob);
+        
         // Ouvrir dans un nouvel onglet
-        window.open(data.signedUrl, '_blank');
+        const newWindow = window.open(blobUrl, '_blank');
+        
+        // Nettoyer l'URL après un délai (pour laisser le temps au navigateur de charger)
+        setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+        }, 60000); // 1 minute
         
         console.log('✅ Document ouvert dans un nouvel onglet');
         
