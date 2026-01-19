@@ -603,9 +603,6 @@ async function chargerDocumentsClient(clientId) {
         currentClientDocuments = documents;
         afficherDocumentsClient(documents);
         
-        // Afficher la section
-        document.getElementById('documents-list-section').style.display = 'block';
-        
     } catch (error) {
         console.error('❌ Erreur chargement documents:', error);
         alert('Erreur lors du chargement des documents');
