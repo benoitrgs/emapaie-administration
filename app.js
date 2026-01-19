@@ -2668,122 +2668,150 @@ async function loadDocuments() {
     const contentArea = document.getElementById('contentArea');
     
     contentArea.innerHTML = `
-        <div class="page-header">
-            <h2>📁 Gestion des fichiers</h2>
-            <p>Stockage sécurisé des documents clients (bulletins, contrats, etc.)</p>
-        </div>
-
-        <!-- Section Upload -->
-        <div class="card" style="margin-bottom: 2rem;">
-            <h3 style="margin-bottom: 1.5rem; font-size: 1.25rem;">
-                📤 Importer un document
-            </h3>
-            
-            <div style="margin-bottom: 1.5rem;">
-                <label class="form-label">Client <span style="color: var(--danger);">*</span></label>
-                <select id="document-client-select" class="form-input" required>
-                    <option value="">-- Sélectionner un client --</option>
-                </select>
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <div>
+                <h2 style="margin-bottom: 0.5rem;">📁 Gestion des fichiers</h2>
+                <p style="color: var(--text-gray); margin: 0;">Stockage sécurisé des documents clients</p>
             </div>
-
-            <div style="margin-bottom: 1.5rem;">
-                <label class="form-label">Type de document <span style="color: var(--danger);">*</span></label>
-                <div id="document-type-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-                    <!-- Rempli dynamiquement -->
-                </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
-                <div id="document-mois-container" style="display: none;">
-                    <label class="form-label">Mois</label>
-                    <select id="document-mois" class="form-input">
-                        <option value="">-- Sélectionner --</option>
-                        <option value="1">Janvier</option>
-                        <option value="2">Février</option>
-                        <option value="3">Mars</option>
-                        <option value="4">Avril</option>
-                        <option value="5">Mai</option>
-                        <option value="6">Juin</option>
-                        <option value="7">Juillet</option>
-                        <option value="8">Août</option>
-                        <option value="9">Septembre</option>
-                        <option value="10">Octobre</option>
-                        <option value="11">Novembre</option>
-                        <option value="12">Décembre</option>
-                    </select>
-                </div>
-
-                <div id="document-annee-container" style="display: none;">
-                    <label class="form-label">Année</label>
-                    <input type="number" id="document-annee" class="form-input" placeholder="2025" min="2000" max="2100">
-                </div>
-            </div>
-
-            <div style="margin-bottom: 1.5rem;">
-                <label class="form-label">Fichier <span style="color: var(--danger);">*</span></label>
-                <div id="document-drop-zone" class="drop-zone">
-                    <div class="drop-zone-icon">📁</div>
-                    <p style="font-weight: 600; margin-bottom: 0.5rem;">Glissez-déposez un fichier ici</p>
-                    <p style="color: var(--text-gray); font-size: 0.875rem; margin-bottom: 0.5rem;">ou cliquez pour sélectionner</p>
-                    <p style="color: var(--text-gray); font-size: 0.75rem;">
-                        Formats acceptés : PDF, DOC, DOCX, XLS, XLSX<br>
-                        Taille maximale : 10 MB
-                    </p>
-                </div>
-                <input type="file" id="document-file-input" style="display: none;" accept=".pdf,.doc,.docx,.xls,.xlsx">
-                <div id="file-preview" style="margin-top: 1rem; display: none;"></div>
-            </div>
-
-            <div style="margin-bottom: 1.5rem;">
-                <label class="form-label">Description (optionnelle)</label>
-                <textarea id="document-description" class="form-input" rows="2" placeholder="Notes ou commentaires sur ce document..."></textarea>
-            </div>
-
-            <div style="display: flex; gap: 1rem;">
-                <button id="btn-upload-document" class="btn btn-primary" onclick="uploaderDocument()">
-                    📤 Envoyer le document
-                </button>
-                <button type="button" class="btn btn-outline" onclick="resetUploadForm()">
-                    ✖ Réinitialiser
-                </button>
-            </div>
+            <button class="btn btn-primary" onclick="ouvrirModalUpload()" style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="bi bi-plus-circle" style="font-size: 1.25rem;"></i>
+                Nouveau document
+            </button>
         </div>
 
         <!-- Section Liste des documents -->
-        <div id="documents-list-section" class="card" style="display: none;">
-            <h3 id="documents-list-title" style="margin-bottom: 1.5rem; font-size: 1.25rem;">
-                📄 Documents du client
-            </h3>
-            <div id="documents-list">
-                <!-- Rempli dynamiquement -->
+        <div class="card">
+            <div style="padding: 1.5rem; padding-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div>
+                        <label class="form-label" style="margin-bottom: 0.5rem;">Sélectionner un client</label>
+                        <select id="document-client-select" class="form-input" required style="min-width: 300px;">
+                            <option value="">-- Choisir un client --</option>
+                        </select>
+                    </div>
+                    <div id="documents-list-title" style="font-size: 1.125rem; font-weight: 500;">
+                        <!-- Titre dynamique -->
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 0 1.5rem 1.5rem 1.5rem;">
+                <div id="documents-list">
+                    <div style="padding: 3rem; text-align: center; color: var(--text-gray);">
+                        <i class="bi bi-arrow-up-circle" style="font-size: 3rem; display: block; margin-bottom: 1rem; opacity: 0.5;"></i>
+                        Sélectionnez un client pour voir ses documents
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Aide -->
-        <div class="card" style="border: 2px solid #3b82f6; background: #eff6ff;">
-            <h4 style="color: #1e40af; margin-bottom: 1rem; font-size: 1rem;">
-                ℹ️ Informations importantes
-            </h4>
-            <ul style="margin: 0; padding-left: 1.5rem; color: var(--text-gray); font-size: 0.875rem;">
-                <li><strong>Sécurité :</strong> Tous les documents sont chiffrés et stockés de manière sécurisée</li>
-                <li><strong>Organisation :</strong> Les documents sont automatiquement classés par client, type et année</li>
-                <li><strong>Accès :</strong> Seules les personnes autorisées peuvent accéder aux documents</li>
-                <li><strong>Formats :</strong> PDF (recommandé), DOC, DOCX, XLS, XLSX</li>
-                <li><strong>Taille :</strong> Limite de 10 MB par fichier</li>
-            </ul>
+        <!-- Modal Upload Document -->
+        <div id="modal-upload-document" class="modal-overlay" style="display: none;">
+            <div class="modal" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h3 style="margin: 0;">📤 Importer un document</h3>
+                    <button onclick="fermerModalUpload()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-gray);" title="Fermer">
+                        ✕
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 1.5rem;">
+                        <label class="form-label">Client <span style="color: var(--danger);">*</span></label>
+                        <select id="document-client-select-modal" class="form-input" required>
+                            <option value="">-- Sélectionner un client --</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label class="form-label">Type de document <span style="color: var(--danger);">*</span></label>
+                        <div id="document-type-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                            <!-- Rempli dynamiquement -->
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div id="document-mois-container" style="display: none;">
+                            <label class="form-label">Mois</label>
+                            <select id="document-mois" class="form-input">
+                                <option value="">-- Sélectionner --</option>
+                                <option value="1">Janvier</option>
+                                <option value="2">Février</option>
+                                <option value="3">Mars</option>
+                                <option value="4">Avril</option>
+                                <option value="5">Mai</option>
+                                <option value="6">Juin</option>
+                                <option value="7">Juillet</option>
+                                <option value="8">Août</option>
+                                <option value="9">Septembre</option>
+                                <option value="10">Octobre</option>
+                                <option value="11">Novembre</option>
+                                <option value="12">Décembre</option>
+                            </select>
+                        </div>
+
+                        <div id="document-annee-container" style="display: none;">
+                            <label class="form-label">Année</label>
+                            <input type="number" id="document-annee" class="form-input" placeholder="2026" min="2000" max="2100">
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label class="form-label">Fichier <span style="color: var(--danger);">*</span></label>
+                        <div id="document-drop-zone" class="drop-zone">
+                            <div class="drop-zone-icon">📁</div>
+                            <p style="font-weight: 600; margin-bottom: 0.5rem;">Glissez-déposez un fichier ici</p>
+                            <p style="color: var(--text-gray); font-size: 0.875rem; margin-bottom: 0.5rem;">ou cliquez pour sélectionner</p>
+                            <p style="color: var(--text-gray); font-size: 0.75rem; margin: 0;">
+                                Formats : PDF, DOC, DOCX, XLS, XLSX • Max : 10 MB
+                            </p>
+                        </div>
+                        <input type="file" id="document-file-input" style="display: none;" accept=".pdf,.doc,.docx,.xls,.xlsx">
+                        <div id="file-preview" style="margin-top: 1rem; display: none;"></div>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label class="form-label">Description (optionnelle)</label>
+                        <textarea id="document-description" class="form-input" rows="2" placeholder="Notes ou commentaires..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="fermerModalUpload()">
+                        Annuler
+                    </button>
+                    <button id="btn-upload-document" class="btn btn-primary" onclick="uploaderDocument()">
+                        📤 Envoyer le document
+                    </button>
+                </div>
+            </div>
         </div>
     `;
     
     // Initialiser le module documents (défini dans documents.js)
     if (typeof chargerDocuments === 'function') {
         await chargerDocuments();
+        
+        // Synchroniser les dropdowns client (page principale et modal)
+        const clientSelect = document.getElementById('document-client-select');
+        const clientSelectModal = document.getElementById('document-client-select-modal');
+        
+        if (clientSelect && clientSelectModal) {
+            // Copier les options
+            clientSelectModal.innerHTML = clientSelect.innerHTML;
+            
+            // Synchroniser les sélections
+            clientSelect.addEventListener('change', (e) => {
+                clientSelectModal.value = e.target.value;
+            });
+            
+            clientSelectModal.addEventListener('change', (e) => {
+                clientSelect.value = e.target.value;
+            });
+        }
     } else {
         console.error('❌ Module documents.js non chargé');
         contentArea.innerHTML += `
             <div class="card" style="background: #fee2e2; border-color: #ef4444; margin-top: 1rem;">
-                <p style="color: #991b1b;">
-                    <strong>⚠️ Erreur :</strong> Le module de gestion documentaire (documents.js) n'est pas chargé. 
-                    Assurez-vous que le fichier documents.js est bien présent et chargé dans index.html.
+                <p style="color: #991b1b; margin: 0;">
+                    <strong>⚠️ Erreur :</strong> Le module de gestion documentaire (documents.js) n'est pas chargé.
                 </p>
             </div>
         `;
