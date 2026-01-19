@@ -28,8 +28,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Écouter les changements d'authentification
     Auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN') {
+            const wasAlreadyLoggedIn = currentUser !== null;
             currentUser = session.user;
-            showApp();
+            
+            // Ne rediriger vers le dashboard que si l'utilisateur vient de se connecter
+            // (pas si c'est juste un refresh de session)
+            if (!wasAlreadyLoggedIn) {
+                showApp();
+            } else {
+                // Juste mettre à jour les infos utilisateur sans changer de page
+                if (currentUser) {
+                    const userName = currentUser.email.split('@')[0];
+                    document.getElementById('userName').textContent = userName;
+                    document.getElementById('userAvatar').textContent = userName.charAt(0).toUpperCase();
+                }
+            }
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
             showLogin();
