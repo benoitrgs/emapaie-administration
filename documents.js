@@ -777,15 +777,6 @@ async function voirDocument(documentId, cheminStorage, nomFichier) {
         alert('Erreur lors de l\'ouverture du document');
     }
 }
-        link.click();
-        
-        console.log('✅ Téléchargement lancé');
-        
-    } catch (error) {
-        console.error('❌ Erreur téléchargement:', error);
-        alert('Erreur lors du téléchargement du document');
-    }
-}
 
 /**
  * Confirmer la suppression d'un document
